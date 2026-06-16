@@ -2,50 +2,212 @@
 Курсовая работа. Многопоточное и асинхронное программирование на Java.
 Реализация аналогичной RxJava-библиотеки
 
-## Базовые компоненты
-- `Observer<T>` — с методами `onNext`, `onError`, `onComplete`.
-- `Observable<T>` — хранит источник данных и позволяет подписаться через `subscribe`.
-- `Disposable` — отменяет подписку.
-- `Scheduler` — интерфейс для запуска задач в другом потоке.
-- `Schedulers` — класс с тремя планировщиками.
+## Описание
 
-Операторы:
-- `map` — преобразует поток данных.
-- `filter` — отфильтровывает ненужные элементы.
-- `flatMap` — преобразует элементы в новый Observable.
-- `subscribeOn` — запускает саму подписку в другом потоке.
-- `observeOn` — переносит обработку событий в другой поток.
+В рамках данной работы была реализована собственная система реактивных потоков с использованием паттерна Observer.
+
+Проект поддерживает:
+
+* создание Observable;
+* подписку через Observer;
+* операторы map;
+* операторы filter;
+* оператор flatMap;
+* обработку ошибок;
+* управление подписками через Disposable;
+* выполнение задач в различных потоках через Scheduler.
 
 ## Архитектура
-Главный класс — `Observable`. Он создается через метод `create`. Внутри хранится функция `OnSubscribe`, которая знает, как отправлять данные наблюдателю.
-Подписчик реализует интерфейс `Observer`. Когда поток работает, он вызывает:
-- `onNext`, когда пришел новый элемент;
-- `onError`, если произошла ошибка;
-- `onComplete`, когда поток закончился.
-`Disposable` сделан очень просто. Там только флаг `disposed`. Если вызвать `dispose`, флаг становится `true`. В операторах есть проверка этого флага.
 
-## Schedulers
-- `IOThreadScheduler` — аналог Schedulers.io(), использующий CachedThreadPool
-- `ComputationScheduler` — аналог Schedulers.computation(), использующий FixedThreadPool
-- `SingleThreadScheduler` — аналог Schedulers.single(), использующий один поток
-Метод `subscribeOn` запускает источник данных в выбранном Scheduler. Метод `observeOn` запускает методы Observer в выбранном Scheduler.
+Основные компоненты проекта:
+
+### Observer
+
+Интерфейс для получения событий из потока.
+
+Методы:
+
+```java
+onNext(T item)
+onError(Throwable t)
+onComplete()
+```
+
+### Observable
+
+Источник данных.
+
+Создается через метод:
+
+```java
+Observable.create(...)
+```
+
+Поддерживает подписку:
+
+```java
+observable.subscribe(...)
+```
+
+### Disposable
+
+Используется для отмены подписки.
+
+Методы:
+
+```java
+dispose()
+isDisposed()
+```
+
+## Операторы
+
+### map
+
+Преобразование элементов потока.
+
+Пример:
+
+```java
+Observable.create(...)
+    .map(x -> x * 2);
+```
+
+### filter
+
+Фильтрация элементов потока.
+
+Пример:
+
+```java
+Observable.create(...)
+    .filter(x -> x > 10);
+```
+
+### flatMap
+
+Преобразование элемента в новый Observable.
+
+Пример:
+
+```java
+Observable.create(...)
+    .flatMap(x -> Observable.create(...));
+```
+
+## Scheduler
+
+Для управления потоками выполнения реализован интерфейс:
+
+```java
+public interface Scheduler {
+    void execute(Runnable task);
+}
+```
+
+### IOThreadScheduler
+
+Использует CachedThreadPool.
+
+Подходит для операций ввода-вывода.
+
+### ComputationScheduler
+
+Использует FixedThreadPool.
+
+Подходит для вычислительных задач.
+
+### SingleThreadScheduler
+
+Использует один поток выполнения.
+
+Подходит для последовательной обработки данных.
+
+## subscribeOn и observeOn
+
+### subscribeOn
+
+Определяет поток, в котором будет выполнена подписка.
+
+```java
+observable.subscribeOn(new IOThreadScheduler());
+```
+
+### observeOn
+
+Определяет поток обработки элементов.
+
+```java
+observable.observeOn(new ComputationScheduler());
+```
+
+## Обработка ошибок
+
+Ошибки передаются подписчику через метод:
+
+```java
+onError(Throwable t)
+```
+
+Это позволяет централизованно обрабатывать исключения во время выполнения потока.
 
 ## Тестирование
-Проверяется:
-- обычная подписка;
-- работа `map` и `filter`;
-- работа `flatMap`;
-- передача ошибки в `onError`;
-- работа `Disposable`;
-- работа `subscribeOn` в другом потоке;
-- работа `observeOn` в другом потоке.
 
-Запуск:
-```bash
-mvn test
+Для проверки работы библиотеки были написаны unit-тесты.
+
+Проверены:
+
+* Observable;
+* Observer;
+* map;
+* filter;
+* flatMap;
+* Disposable;
+* subscribeOn;
+* observeOn;
+* обработка ошибок;
+* работа Scheduler.
+
+Все тесты проходят успешно.
+
+## Пример использования
+
+```java
+Observable.create(emitter -> {
+    emitter.onNext(1);
+    emitter.onNext(2);
+    emitter.onNext(3);
+    emitter.onComplete();
+})
+.filter(x -> x > 1)
+.map(x -> x * 10)
+.subscribe(new Observer<Integer>() {
+
+    @Override
+    public void onNext(Integer item) {
+        System.out.println(item);
+    }
+
+    @Override
+    public void onError(Throwable t) {
+        t.printStackTrace();
+    }
+
+    @Override
+    public void onComplete() {
+        System.out.println("Completed");
+    }
+});
 ```
 
-```bash
-mvn compile exec:java -Dexec.mainClass=ru.junior.rx.Main
+Результат:
+
+```text
+20
+30
+Completed
 ```
-Если плагина `exec` нет, можно просто открыть `Main` в IDE и запустить его.
+
+## Вывод
+
+В ходе выполнения работы была реализована упрощенная версия библиотеки RxJava с поддержкой реактивных потоков, операторов преобразования данных, управления потоками выполнения и тестирования основных сценариев работы.
